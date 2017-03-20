@@ -19,6 +19,9 @@ module DeltaQ.Algebra.Class
   , (∅)
   , (⇋)
   , (⊕)
+  , δ
+  , (⊓)
+  , uniform
   , simpleShow
   )
 where
