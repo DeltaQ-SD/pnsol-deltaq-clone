@@ -4,10 +4,10 @@ module DeltaQ.Visualisation.ChartPlot
 where
 
 import           Control.Lens
-import           Control.Monad.Primitive
+-- import           Control.Monad.Primitive
 import           Control.Monad.Reader
 import           Data.List
-import qualified Data.Map.Strict as M
+-- import qualified Data.Map.Strict as M
 import           Data.Maybe
 import           Graphics.Rendering.Chart.Easy
 import           System.Random.MWC
@@ -65,11 +65,11 @@ generateCDFPlot :: (MonadReader (PlotInfo Double) m, MonadIO m)
                 => GenIO
                 -> String
                 -> DeltaQ
-                -> m (EC l (PlotLines Double Rational))
+                -> m (EC l (PlotLines Double Double))
 generateCDFPlot gen l'name dq = do
   n  <- view noSamples
   de <- view maxDelay
-  let f :: [Maybe Double] -> [(Double, Rational)]
+  let f :: [Maybe Double] -> [(Double, Double)]
       f = (applyDelayExtension de)
         . (normaliseCDF p'mass)
         . (asCDF n) 
