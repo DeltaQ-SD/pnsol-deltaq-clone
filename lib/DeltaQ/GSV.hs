@@ -11,6 +11,8 @@ module DeltaQ.GSV
        )
 where
 
+import Data.Kind
+
 import DeltaQ.Algebra
 
 -- | G,S and V are the measurements of the ∆Q for this network
@@ -34,7 +36,7 @@ import DeltaQ.Algebra
 --        it is a model (the uniform distribution) of the residual
 --        service time.
 
-class QualityAttenuator (a :: * -> (* -> *) -> * -> * ) where
+class QualityAttenuator (a :: Type -> (Type -> Type) -> Type -> Type ) where
   toCanonicalGSV :: a p d n -> CanonicalGSV p d n
   toCanonicalGSV x
     = CGSV (g x) (s x) (v x) (r x)
