@@ -18,6 +18,7 @@ library
                     , DeltaQ.Numeric.CDF.Types
                     , DeltaQ.QTA.Support
                     , DeltaQ.RationalProbabilityDoubleDelay
+                    , DeltaQ.Visualisation.PlotUtils
   build-depends:      base >= 4
                     , containers
                     , data-default
