@@ -47,14 +47,15 @@ toPlottableCDF'  (PI np de) gen dq =
   where
     f :: [Maybe Double] -> [(Double, Double)]
     f = (applyDelayExtension de)
-        . (normaliseCDF p'mass)
+--        . (normaliseCDF p'mass)
+        . (map (\(a,b) -> (a, fromRational b)))
         . (asCDF np)
-    p'mass = realToFrac $ tangibleMass dq
+--    p'mass = realToFrac $ tangibleMass dq
     asCDF n xs
       = (0,0) : zip (sort $ catMaybes xs) cs
       where
         cs = map ( / fromIntegral n) $ iterate (+1) 1
-    normaliseCDF n = map (\(a,b) -> (a, n * fromRational b))
+--    normaliseCDF n = map (\(a,b) -> (a, n * fromRational b))
 
 toPlottableCDF :: (MonadIO m)
                => GenIO
