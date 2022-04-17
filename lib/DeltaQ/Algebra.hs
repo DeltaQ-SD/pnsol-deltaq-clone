@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module DeltaQ.Algebra
   ( module DeltaQ.Algebra.Class
+  , module DeltaQ.Algebra.Simplification
   , perfection
   , bottom
   , mmmv
@@ -9,6 +10,7 @@ module DeltaQ.Algebra
 where
 
 import DeltaQ.Algebra.Class
+import DeltaQ.Algebra.Simplification
 
 -- | No quality attenutation, zero ∆Q
 perfection :: DeltaQ p d n
