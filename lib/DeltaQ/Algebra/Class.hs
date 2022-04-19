@@ -26,6 +26,8 @@ module DeltaQ.Algebra.Class
   )
 where
 
+import Data.Kind
+
 import DeltaQ.Algebra.Type
 import DeltaQ.Algebra.Simplification
 
@@ -45,7 +47,7 @@ class ImproperRandomVar m where
 
 -- | instances of ∆Q, being improper random variables in themseleves,
 -- can also support the following operations.
-class SimpleStatDesc (a :: * -> *) n where
+class SimpleStatDesc (a :: Type -> Type) n where
    simpleStatDesc :: a n -> MinMaxMeanVar n
 
 -- | Divergence, unbounded delay, total loss. Unicode \u22a5 - maximum ∆Q
