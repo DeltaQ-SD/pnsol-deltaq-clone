@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+
 module DeltaQ.Algebra.Type
   ( DeltaQ(..)
   , DelayModel(..)
@@ -15,6 +16,7 @@ module DeltaQ.Algebra.Type
   )
 where
 
+import Data.Kind
 import Data.Ratio (numerator, denominator)
 
 import {-# SOURCE #-} DeltaQ.Algebra.Class (ImproperRandomVar(tangibleMass))
@@ -23,7 +25,7 @@ import {-# SOURCE #-} DeltaQ.Algebra.Class (ImproperRandomVar(tangibleMass))
 -- reifications of the general algebra. Each delay sub-model needs to
 -- supply a simplifier for that model's specific properties. The
 -- default is that no simplification is performed.
-class (Num n, Ord n) => DelayModel (d :: * -> *) n where
+class (Num n, Ord n) => DelayModel (d :: Type -> Type) n where
     simplifyDelay :: Num p => ((DeltaQ p d n) -> (DeltaQ p d n))
                   -> DeltaQ p d n
                   -> DeltaQ p d n
@@ -51,7 +53,7 @@ uniform  a b
       =  (δ a) `Convolve` ((⊓) $! b - a)
 
 -- | The basic structural representation of DeltaQ
-data DeltaQ p (d :: * -> *) n  where
+data DeltaQ p (d :: Type -> Type) n  where
   Bottom     :: DeltaQ p d n
 
   Unit       :: DeltaQ p d n
