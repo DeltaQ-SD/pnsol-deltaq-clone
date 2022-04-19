@@ -20,6 +20,9 @@ data EmpiricalCDF = EmpiricalCDF
   , _ecdfInverse  :: !(Rational -> Maybe Double)
     -- ^ Returns values over [0,`ecdfMass`] and `Nothing` between
     --   (`ecdMass`, 1]. The inverse of the above.
+  , _ecdfPdf       :: (Double -> ((Double, Double), Rational))
+    -- ^ The empirical PDF derived from the CDF. Note that this is not strictly
+    --   evaluated (to defer cost if not used).
   , _ecdfMass     :: !Rational
     -- ^ The tangible propabilty mass.
   , _ecdfSamples  :: !Int
@@ -94,8 +97,45 @@ makeEmpiricalCDF ys = run (start >> step ys >> finalise)
               | x >  1    = error "makeEmpiricalCDF: > unit probability"
               | x >  p    = Nothing
               | otherwise = fmap snd $  M.lookupLE x i
-      return $ i `seq` EmpiricalCDF f g p n l u a v
+          -- construct the PDF (closure)
+          h x | M.null m' = error "makeEmpiricalCDF: no tangible mass"
+              | x <  l    = ((negate infinity, l       ), 0)
+              | x >= u    = ((u,               infinity), 0)
+              | otherwise = asPDF m x
+      return $ i `seq` EmpiricalCDF f g h p n l u a v
     normalise :: Int -> M.Map Double Int -> M.Map Double Rational
     normalise n
       = snd
       . M.mapAccum (\a b -> let c = a + toRational b in (c, c / toRational n)) 0
+
+    -- The result of the lookup is half-open interval [a,b) over which this is
+    -- the probability density.
+    asPDF :: M.Map Double Rational -> Double -> ((Double, Double), Rational)
+    asPDF m' x =
+      f $ M.lookupLE x m
+      where
+        m = M.fromAscList . g $  M.toAscList m'
+
+        f (Just (l, (u, pd))) = ((l, u), pd)
+        f Nothing = error "makeEmpiricalCDF: asPDF impossible!"
+
+        g :: [(Double, Rational)] -> [(Double, (Double, Rational))]
+        g [] = []
+        g (a:as)
+          = g' a as
+          where
+            -- skip over CDF values that are too close to the initial value
+            g' _ [] = []
+            g' b@(bk,bv) cs@((ck,cv):cs')
+              | (ck < bk + e3) && (not $ null cs')
+                = g' b cs'
+              | otherwise
+                = let v = (cv - bv) / toRational (ck - bk)
+                  in v `seq` (bk, (ck, v)) : g cs
+        -- The cube root of the machine epsilon. Used to mitigate potential
+        -- numerical instability issues (see
+        -- https://en.wikipedia.org/wiki/Numerical_differentiation#Step_size).
+        -- Used to combine successive samples where they are too close for
+        -- numerical comfort.
+        e3 :: Double
+        e3 = epsilon ** (1/3)
