@@ -113,8 +113,7 @@ makeEmpiricalCDF ys = run (start >> step ys >> finalise)
     -- The result of the lookup is half-open interval [a,b) over which this is
     -- the probability density.
     asPDF :: M.Map Double Rational -> Double -> ((Double, Double), Rational)
-    asPDF m' x =
-      f $ M.lookupLE x m
+    asPDF m' = f . (flip M.lookupLE) m
       where
         m = M.fromAscList . g $  M.toAscList m'
 
