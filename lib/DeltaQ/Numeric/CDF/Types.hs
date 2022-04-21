@@ -21,8 +21,10 @@ data EmpiricalCDF = EmpiricalCDF
     -- ^ Returns values over [0,`ecdfMass`] and `Nothing` between
     --   (`ecdMass`, 1]. The inverse of the above.
   , _ecdfPdf       :: (Double -> ((Double, Double), Rational))
-    -- ^ The empirical PDF derived from the CDF. Note that this is not strictly
-    --   evaluated (to defer cost if not used).
+    -- ^ The empirical PDF derived from the CDF. Note that this is non-strictly
+    --   evaluated (to defer cost if not used). The resulting function returns a
+    --   probability mass density over the half-open interval [a,b) that
+    --   contains the given point.
   , _ecdfMass     :: !Rational
     -- ^ The tangible propabilty mass.
   , _ecdfSamples  :: !Int
@@ -127,15 +129,16 @@ makeEmpiricalCDF ys = run (start >> step ys >> finalise)
             -- skip over CDF values that are too close to the initial value
             g' _ [] = []
             g' b@(bk,bv) cs@((ck,cv):cs')
-              | (ck < bk + e3) && (not $ null cs')
+              | (ck  < bk * h')  && (not $ null cs')
                 = g' b cs'
               | otherwise
-                = let v = (cv - bv) / toRational (ck - bk)
-                  in v `seq` (bk, (ck, v)) : g cs
-        -- The cube root of the machine epsilon. Used to mitigate potential
+                -- d is probablity density over the interval
+                = let d = (cv - bv) / toRational (ck - bk)
+                  in d `seq` (bk, (ck, d)) : g cs
+        -- The square root of the machine epsilon. Used to mitigate potential
         -- numerical instability issues (see
         -- https://en.wikipedia.org/wiki/Numerical_differentiation#Step_size).
         -- Used to combine successive samples where they are too close for
         -- numerical comfort.
-        e3 :: Double
-        e3 = epsilon ** (1/3)
+        h' :: Double
+        h' = 1 + sqrt epsilon
