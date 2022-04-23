@@ -16,6 +16,7 @@ library
                     , DeltaQ.GSV.ATM
                     , DeltaQ.Numeric.CDF
                     , DeltaQ.Numeric.CDF.Types
+                    , DeltaQ.Numeric.PDF
                     , DeltaQ.QTA.Support
                     , DeltaQ.RationalProbabilityDoubleDelay
                     , DeltaQ.Visualisation.PlotUtils
