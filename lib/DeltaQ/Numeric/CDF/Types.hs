@@ -78,67 +78,14 @@ makeEmpiricalCDF ys = run (step ys >> finalise)
             | otherwise = nan
           -- normalise the occurance map into cumulative probability
           m = normalise n m'
-          -- consruct the inverse map
-          i = M.fromList . map (\(x,y) -> (y,x)) . M.toAscList $ m
-          -- lower bound
-          l = maybe infinity fst $ M.lookupMin m
-          -- upper bound
-          u = maybe (negate infinity) fst $ M.lookupMax m
-          -- lookup the total tangible probablity mass
-          p = M.findWithDefault 0 u m
-          -- construct a continuous iCDF from the occurance map
-          f x | M.null m  = error "makeEmpiricalCDF: no tangible mass"
-              | x <= l    = 0
-              | x >= u    = p
-              | otherwise = snd . fromJust $ M.lookupLE x m
-          -- construct the inverse iCDF defined over the range of the
-          -- tangible mass
-          g x | M.null i  = error "makeEmpiricalCDF: no tangible mass"
-              | x <  0    = error "makeEmpiricalCDF: negative probability"
-              | x >  1    = error "makeEmpiricalCDF: > unit probability"
-              | x >  p    = Nothing
-              | otherwise = fmap snd $  M.lookupLE x i
-          -- construct the PDF (closure)
-          h x | M.null m' = error "makeEmpiricalCDF: no tangible mass"
-              | x <  l    = ((negate infinity, l       ), 0)
-              | x >= u    = ((u,               infinity), 0)
-              | otherwise = asPDF m x
-      return $ i `seq` EmpiricalCDF f g h p n l u a v
+      return $ makeEmpiricalCDF' (Just n) (Just a) (Just v) m
     normalise :: Int -> M.Map Double Int -> M.Map Double Rational
     normalise n
       = snd
       . M.mapAccum (\a b -> let c = a + toRational b in (c, c / toRational n)) 0
 
-    -- The result of the lookup is half-open interval [a,b) over which this is
-    -- the probability density.
-    asPDF :: M.Map Double Rational -> Double -> ((Double, Double), Rational)
-    asPDF = (f .) . flip M.lookupLE . M.fromAscList . g .  M.toAscList
-      where
-        f (Just (l, (u, pd))) = ((l, u), pd)
-        f Nothing = error "makeEmpiricalCDF: asPDF impossible!"
-
-        g :: [(Double, Rational)] -> [(Double, (Double, Rational))]
-        g [] = []
-        g (a:as)
-          = g' a as
-          where
-            -- skip over CDF values that are too close to the initial value
-            g' _ [] = []
-            g' b@(bk,bv) cs@((ck,cv):cs')
-              | (ck  < bk * h')  && (not $ null cs')
-                = g' b cs'
-              | otherwise
-                -- d is probablity density over the interval
-                = let d = (cv - bv) / toRational (ck - bk)
-                  in d `seq` (bk, (ck, d)) : g cs
-        -- The square root of the machine epsilon. Used to mitigate potential
-        -- numerical instability issues (see
-        -- https://en.wikipedia.org/wiki/Numerical_differentiation#Step_size).
-        -- Used to combine successive samples where they are too close for
-        -- numerical comfort.
-        h' :: Double
-        h' = 1 + sqrt epsilon
-
+-- | Generate an EmpiricalCDF from a normalized CDF map. As initial construction
+--   can more easily do some calculations, permit those to be injected.
 makeEmpiricalCDF' :: Maybe Int
                   -- ^ The number of samples (Nothing implies size of supplied map)
                   -> Maybe Double
