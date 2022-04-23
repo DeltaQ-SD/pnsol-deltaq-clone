@@ -98,36 +98,34 @@ makeEmpiricalCDF' :: Maybe Int
                   -- ^ The supplied CDF
                   -> EmpiricalCDF
 makeEmpiricalCDF' nSamples mMean mVar m
-  = result
+  = EmpiricalCDF
+    { _ecdf        = \case
+        x | M.null m  -> error "makeEmpiricalCDF: no tangible mass"
+          | x <= lwb  -> 0
+          | x >= upb  -> mass
+          | otherwise -> snd . fromJust $ M.lookupLE x m
+    , _ecdfInverse  = \case
+        x | M.null i  -> error "makeEmpiricalCDF: no tangible mass"
+          | x <  0    -> error "makeEmpiricalCDF: negative probability"
+          | x >  1    -> error "makeEmpiricalCDF: > unit probability"
+          | x >  mass -> Nothing
+          | otherwise -> fmap snd $  M.lookupLE x i
+    , _ecdfPdf      = \case
+        x | M.null m  -> error "makeEmpiricalCDF: no tangible mass"
+          | x <  lwb  -> ((negate infinity, lwb     ), 0)
+          | x >= upb  -> ((upb,             infinity), 0)
+          | otherwise -> asPDF m x
+    , _ecdfMass     = mass
+    , _ecdfSamples  = maybe (M.size m) id nSamples
+    , _ecdfMin      = lwb
+    , _ecdfMax      = upb
+    , _ecdfMean     = maybe mean' id mMean
+    , _ecdfVariance = maybe var'  id mVar
+    }
   where
-    result = EmpiricalCDF
-      { _ecdf        = \case
-          x | M.null m  -> error "makeEmpiricalCDF: no tangible mass"
-            | x <= lwb  -> 0
-            | x >= upb  -> mass
-            | otherwise -> snd . fromJust $ M.lookupLE x m
-      , _ecdfInverse  = \case
-          x | M.null i  -> error "makeEmpiricalCDF: no tangible mass"
-            | x <  0    -> error "makeEmpiricalCDF: negative probability"
-            | x >  1    -> error "makeEmpiricalCDF: > unit probability"
-            | x >  mass -> Nothing
-            | otherwise -> fmap snd $  M.lookupLE x i
-      , _ecdfPdf      = \case
-          x | M.null m  -> error "makeEmpiricalCDF: no tangible mass"
-            | x <  lwb  -> ((negate infinity, lwb     ), 0)
-            | x >= upb  -> ((upb,             infinity), 0)
-            | otherwise -> asPDF m x
-      , _ecdfMass     = M.findWithDefault 0 upb m
-      , _ecdfSamples  = maybe (M.size m) id nSamples
-      , _ecdfMin      = maybe infinity fst $ M.lookupMin m
-      , _ecdfMax      = maybe (negate infinity) fst $ M.lookupMax m
-      , _ecdfMean     = maybe mean' id mMean
-      , _ecdfVariance = maybe var'  id mVar
-      }
- 
-    mass = _ecdfMass result
-    lwb  = _ecdfMin result
-    upb  = _ecdfMax result
+    mass = M.findWithDefault 0 upb m
+    lwb  = maybe infinity fst $ M.lookupMin m
+    upb  = maybe (negate infinity) fst $ M.lookupMax m
 
     -- construct the inverse iCDF defined over the range of the tangible mass
     -- construct the PDF (closure)
