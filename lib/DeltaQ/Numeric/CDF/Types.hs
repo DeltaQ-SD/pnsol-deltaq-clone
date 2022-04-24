@@ -141,7 +141,7 @@ makeEmpiricalCDF' nSamples mMean mVar m
          | otherwise = recip mass
       -- Construct the pointwise PDF
       df _ []         = []
-      df n ((a,b):xs) = (a, toRational a * (b - n)) : df b xs
+      df n ((a,b):xs) = (a, b - n) : df b xs
       in
         sum [a * fromRational (b * sf) | (a,b) <- df 0 $ M.toAscList  m]
 
