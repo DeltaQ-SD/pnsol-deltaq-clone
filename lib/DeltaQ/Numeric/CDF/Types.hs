@@ -133,9 +133,19 @@ makeEmpiricalCDF' nSamples mMean mVar m
 
     -- Use the probability mass for each point to weight the value. Note that
     -- needs to be scaled by the intangible mass (if any is present).
-    mean' = undefined
+    mean' :: Double
+    mean' = let
+      -- need to scale the probabilities so that the weighted sums represent unit
+      -- prob mass.
+      sf | mass == 0 = 1 -- don't want exception, no non-zero entries anyway
+         | otherwise = recip mass
+      -- Construct the pointwise PDF
+      df _ []         = []
+      df n ((a,b):xs) = (a, toRational a * (b - n)) : df b xs
+      in
+        sum [a * fromRational (b * sf) | (a,b) <- df 0 $ M.toAscList  m]
 
-    var'  = undefined
+    var'  = nan
 
 -- The result of the lookup is half-open interval [a,b) over which this is the
 -- probability density.
