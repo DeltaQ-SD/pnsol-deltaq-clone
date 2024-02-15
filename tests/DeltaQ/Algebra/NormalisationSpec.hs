@@ -4,7 +4,7 @@
 
 module DeltaQ.Algebra.NormalisationSpec where
 
-import Control.Monad (liftM)
+import Data.Functor ((<&>))
 import Debug.Trace (traceShow)
 import DeltaQ.Algebra (DeltaQ (..), normaliseDeltaQ)
 import DeltaQ.Algebra.DelayModel.SimpleUniform (SimpleUniform (..))
@@ -40,62 +40,62 @@ spec = do
 -- testGroup "∅ demotion"
 -- test "(x [p⇋q] ∅) [r⇋s] y ⇒ x [p*r⇋]
 
-prop_p_rule_zero_choice :: RationalDeltaQ -> Property
-prop_p_rule_zero_choice _ =
+prop_p_rule_zero_choice :: Property
+prop_p_rule_zero_choice =
     forAll tc $ \x ->
         case x of
-            (ProbChoice _ _ b) -> (normaliseDeltaQ x == normaliseDeltaQ b)
-            _ -> error $ "prop_p_rule_zero_choice generator error"
+            (ProbChoice _ _ b) -> normaliseDeltaQ x == normaliseDeltaQ b
+            _ -> error "prop_p_rule_zero_choice generator error"
   where
     tc :: Gen RationalDeltaQ
     tc = ProbChoice 0 <$> arbitrary <*> arbitrary
 
-prop_p_rule_one_choice :: RationalDeltaQ -> Property
-prop_p_rule_one_choice _ =
+prop_p_rule_one_choice :: Property
+prop_p_rule_one_choice =
     forAll tc $ \x ->
         case x of
-            (ProbChoice _ a _) -> (normaliseDeltaQ x == normaliseDeltaQ a)
-            _ -> error $ "prop_p_rule_one_choice generator error"
+            (ProbChoice _ a _) -> normaliseDeltaQ x == normaliseDeltaQ a
+            _ -> error "prop_p_rule_one_choice generator error"
   where
     tc :: Gen RationalDeltaQ
     tc = ProbChoice 1 <$> arbitrary <*> arbitrary
 
-prop_p_rule_bottom :: RationalDeltaQ -> Property
-prop_p_rule_bottom _ =
+prop_p_rule_bottom :: Property
+prop_p_rule_bottom =
     forAll tc $ \x ->
         case x of
-            (ProbChoice _ Bottom Bottom) -> (normaliseDeltaQ x == Bottom)
-            _ -> error $ "prop_p_rule_bottom generator error"
+            (ProbChoice _ Bottom Bottom) -> normaliseDeltaQ x == Bottom
+            _ -> error "prop_p_rule_bottom generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = liftM (\y -> ProbChoice y Bottom Bottom) arbitrary
+    tc = fmap (\y -> ProbChoice y Bottom Bottom) arbitrary
 
-prop_p_rule_unit :: RationalDeltaQ -> Property
-prop_p_rule_unit _ =
+prop_p_rule_unit :: Property
+prop_p_rule_unit =
     forAll tc $ \x ->
         case x of
-            (ProbChoice _ Unit Unit) -> (normaliseDeltaQ x == Unit)
-            _ -> error $ "prop_p_rule_unit generator error"
+            (ProbChoice _ Unit Unit) -> normaliseDeltaQ x == Unit
+            _ -> error "prop_p_rule_unit generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = liftM (\y -> ProbChoice y Unit Unit) arbitrary
+    tc = fmap (\y -> ProbChoice y Unit Unit) arbitrary
 
-prop_p_norm_bottom :: RationalDeltaQ -> Property
-prop_p_norm_bottom _ =
+prop_p_norm_bottom :: Property
+prop_p_norm_bottom =
     forAll tc $ \z ->
         case z of
             (ProbChoice _p _x Bottom) -> case normaliseDeltaQ z of
                 (ProbChoice _ Bottom _y) -> True
                 Bottom -> normaliseDeltaQ _x == Bottom
                 _ -> False
-            _ -> error $ "prop_p_norm_bottom generator error"
+            _ -> error "prop_p_norm_bottom generator error"
   where
     tc :: Gen RationalDeltaQ
     tc = (\p x -> ProbChoice p x Bottom) <$> not0or1 <*> arbitrary
     not0or1 = arbitrary `suchThat` (\p -> p > 0 && p < 1)
 
-prop_p_norm_unit :: RationalDeltaQ -> Property
-prop_p_norm_unit _ =
+prop_p_norm_unit :: Property
+prop_p_norm_unit =
     forAll tc $ \z ->
         case z of
             (ProbChoice _p Unit _y) ->
@@ -103,18 +103,18 @@ prop_p_norm_unit _ =
                     Unit -> normaliseDeltaQ _y == Unit
                     (ProbChoice _ _ y) -> endsInUnit $ normaliseDeltaQ y
                     _z -> traceShow ("prob_p_norm_unit", z, _z) False
-            _ -> error $ "prop_p_norm_unit generator error"
+            _ -> error "prop_p_norm_unit generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = (\p y -> ProbChoice p Unit y) <$> not0or1 <*> arbitrary
+    tc = (`ProbChoice` Unit) <$> not0or1 <*> arbitrary
     not0or1 = arbitrary `suchThat` (\p -> p > 0 && p < 1)
 
     endsInUnit Unit = True
     endsInUnit (ProbChoice _ _ y) = endsInUnit y
     endsInUnit _ = False
 
-prop_c_bottom_a :: RationalDeltaQ -> Property
-prop_c_bottom_a _ =
+prop_c_bottom_a :: Property
+prop_c_bottom_a =
     forAll tc $ \z ->
         case z of
             (Convolve Bottom x) ->
@@ -124,11 +124,11 @@ prop_c_bottom_a _ =
             _ -> error $ name ++ " generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = liftM (\x -> Convolve Bottom x) arbitrary
+    tc = fmap (Convolve Bottom) arbitrary
     name = "prop_c_bottom_a"
 
-prop_c_bottom_b :: RationalDeltaQ -> Property
-prop_c_bottom_b _ =
+prop_c_bottom_b :: Property
+prop_c_bottom_b =
     forAll tc $ \z ->
         case z of
             (Convolve x Bottom) ->
@@ -138,35 +138,31 @@ prop_c_bottom_b _ =
             _ -> error $ name ++ " generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = liftM (\x -> Convolve x Bottom) arbitrary
+    tc = fmap (`Convolve` Bottom) arbitrary
     name = "prop_c_bottom_b"
 
-prop_c_unit_a :: RationalDeltaQ -> Property
-prop_c_unit_a _ =
+prop_c_unit_a :: Property
+prop_c_unit_a =
     forAll tc $ \z ->
         case z of
             (Convolve Unit x) ->
-                case normaliseDeltaQ z == normaliseDeltaQ x of
-                    True -> True
-                    False -> traceShow (name, z, normaliseDeltaQ z) False
+                (if normaliseDeltaQ z == normaliseDeltaQ x then True else traceShow (name, z, normaliseDeltaQ z) False)
             _ -> error $ name ++ " generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = liftM (\x -> Convolve Unit x) arbitrary
+    tc = fmap (Convolve Unit) arbitrary
     name = "prop_c_unit_a"
 
-prop_c_unit_b :: RationalDeltaQ -> Property
-prop_c_unit_b _ =
+prop_c_unit_b :: Property
+prop_c_unit_b =
     forAll tc $ \z ->
         case z of
             (Convolve x Unit) ->
-                case normaliseDeltaQ z == normaliseDeltaQ x of
-                    True -> True
-                    False -> traceShow (name, z, normaliseDeltaQ z) False
+                (if normaliseDeltaQ z == normaliseDeltaQ x then True else traceShow (name, z, normaliseDeltaQ z) False)
             _ -> error $ name ++ " generator error"
   where
     tc :: Gen RationalDeltaQ
-    tc = liftM (\x -> Convolve x Unit) arbitrary
+    tc = fmap (`Convolve` Unit) arbitrary
     name = "prop_c_unit_b"
 
 type RationalDeltaQ = DeltaQ Probability SimpleUniform NonNeg
@@ -180,8 +176,8 @@ instance Arbitrary RationalDeltaQ where
         oneof
             [ return Bottom
             , return Unit
-            , liftM (Delay . DiracDelta) arbitrary
-            , liftM (Delay . UniformD) arbitrary
+            , fmap (Delay . DiracDelta) arbitrary
+            , fmap (Delay . UniformD) arbitrary
             , Convolve <$> arbitrary <*> arbitrary
             , ProbChoice <$> arbitrary <*> arbitrary <*> arbitrary
             ]
@@ -200,7 +196,7 @@ instance Bounded NonNeg where
     maxBound = NonNeg 1000 -- just an arbitrary choice
 
 instance Arbitrary Probability where
-    arbitrary = choose (0, 1) >>= return . Probability . fromRational . (toRational :: Double -> Rational)
+    arbitrary = choose (0, 1) <&> (Probability . fromRational . (toRational :: Double -> Rational))
 
 instance Arbitrary NonNeg where
-    arbitrary = choose (0, 1000) >>= return . NonNeg . fromRational . (toRational :: Double -> Rational)
+    arbitrary = choose (0, 1000) <&> (NonNeg . fromRational . (toRational :: Double -> Rational))
