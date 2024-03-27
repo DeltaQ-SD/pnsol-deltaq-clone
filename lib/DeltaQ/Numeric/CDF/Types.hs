@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE LambdaCase #-}
 module DeltaQ.Numeric.CDF.Types
 where
 
@@ -47,12 +48,10 @@ makeLenses ''EmpiricalCDF
 -- | Given a list of IRV samples construct an empirical improper CDF
 --   along with some additional statistics.
 makeEmpiricalCDF :: [Maybe Double] -> EmpiricalCDF
-makeEmpiricalCDF ys = run (start >> step ys >> finalise)
+makeEmpiricalCDF ys = run (step ys >> finalise)
   where
     -- execute the evalation loop
     run  = (flip evalState) def
-    -- set some more suitable default values
-    start = _4 .= infinity >> _5 .= (negate infinity)
     -- loop over the input stream
     step [] = return ()
     step (Nothing:zs)
@@ -64,54 +63,92 @@ makeEmpiricalCDF ys = run (start >> step ys >> finalise)
       _2 += 1
       -- increment the tangible mass count
       _3 += (1 :: Int)
-      -- update the minimum value
-      _4 %= min z
-      -- update the maximum value
-      _5 %= max z
       -- step the online mean and variance algorithm
-      do n      <- fmap (fromRational . toRational) $ use _3
-         delta  <- fmap (z -) $ use _6
-         _6     += delta / n
-         delta2 <- fmap (z -) $ use _6
-         _7     += delta * delta2
+      do n      <- fmap fromIntegral $ use _3
+         delta  <- fmap (z -) $ use _4
+         _4     += delta / n
+         delta2 <- fmap (z -) $ use _4
+         _5     += delta * delta2
       -- and loop
       step zs
     finalise = do
-      (!m',!n,!t,!l,!u,!a,!b) <- get
+      (!m',!n,!t,!a,!b) <- get
           -- finalise the variance
       let v | t > 2     = b / fromIntegral (t - 1)
             | otherwise = nan
           -- normalise the occurance map into cumulative probability
           m = normalise n m'
-          -- consruct the inverse map
-          i = M.fromList . map (\(x,y) -> (y,x)) . M.toAscList $ m
-          -- lookup the total tangible probablity mass
-          p = M.findWithDefault 0 u m
-          -- construct a continuous iCDF from the occurance map
-          f x | M.null m  = error "makeEmpiricalCDF: no tangible mass"
-              | x <= l    = 0
-              | x >= u    = p
-              | otherwise = snd . fromJust $ M.lookupLE x m
-          -- construct the inverse iCDF defined over the range of the
-          -- tangible mass
-          g x | M.null i  = error "makeEmpiricalCDF: no tangible mass"
-              | x <  0    = error "makeEmpiricalCDF: negative probability"
-              | x >  1    = error "makeEmpiricalCDF: > unit probability"
-              | x >  p    = Nothing
-              | otherwise = fmap snd $  M.lookupLE x i
-          -- construct the PDF (closure)
-          h x | M.null m' = error "makeEmpiricalCDF: no tangible mass"
-              | x <  l    = ((negate infinity, l       ), 0)
-              | x >= u    = ((u,               infinity), 0)
-              | otherwise = asPDF m x
-      return $ i `seq` EmpiricalCDF f g h p n l u a v
+      return $ makeEmpiricalCDF' (Just n) (Just a) (Just v) m
     normalise :: Int -> M.Map Double Int -> M.Map Double Rational
     normalise n
       = snd
       . M.mapAccum (\a b -> let c = a + toRational b in (c, c / toRational n)) 0
 
-    -- The result of the lookup is half-open interval [a,b) over which this is
-    -- the probability density.
+-- | Generate an EmpiricalCDF from a normalized CDF map. As initial construction
+--   can more easily do some calculations, permit those to be injected.
+makeEmpiricalCDF' :: Maybe Int
+                  -- ^ The number of samples (Nothing implies size of supplied map)
+                  -> Maybe Double
+                  -- ^ The calculated arithmetic mean (`Nothing` implies it is
+                  -- calculated from the supplied map)
+                  -> Maybe Double
+                  -- ^ The calculated variance (`Nothing` implies it is
+                  -- calculated from the supplied map)
+                  -> M.Map Double Rational
+                  -- ^ The supplied CDF
+                  -> EmpiricalCDF
+makeEmpiricalCDF' nSamples mMean mVar m
+  = EmpiricalCDF
+    { _ecdf        = \case
+        x | M.null m  -> error "makeEmpiricalCDF: no tangible mass"
+          | x <= lwb  -> 0
+          | x >= upb  -> mass
+          | otherwise -> snd . fromJust $ M.lookupLE x m
+    , _ecdfInverse  = \case
+        x | M.null i  -> error "makeEmpiricalCDF: no tangible mass"
+          | x <  0    -> error "makeEmpiricalCDF: negative probability"
+          | x >  1    -> error "makeEmpiricalCDF: > unit probability"
+          | x >  mass -> Nothing
+          | otherwise -> fmap snd $  M.lookupLE x i
+    , _ecdfPdf      = \case
+        x | M.null m  -> error "makeEmpiricalCDF: no tangible mass"
+          | x <  lwb  -> ((negate infinity, lwb     ), 0)
+          | x >= upb  -> ((upb,             infinity), 0)
+          | otherwise -> asPDF m x
+    , _ecdfMass     = mass
+    , _ecdfSamples  = maybe (M.size m) id nSamples
+    , _ecdfMin      = lwb
+    , _ecdfMax      = upb
+    , _ecdfMean     = maybe mean' id mMean
+    , _ecdfVariance = maybe var'  id mVar
+    }
+  where
+    mass = M.findWithDefault 0 upb m
+    lwb  = maybe infinity fst $ M.lookupMin m
+    upb  = maybe (negate infinity) fst $ M.lookupMax m
+
+    -- construct the inverse iCDF defined over the range of the tangible mass
+    -- construct the PDF (closure)
+    i = M.fromList . map (\(x,y) -> (y,x)) . M.toAscList $ m
+
+    -- Use the probability mass for each point to weight the value. Note that
+    -- needs to be scaled by the intangible mass (if any is present).
+    mean' :: Double
+    mean' = let
+      -- need to scale the probabilities so that the weighted sums represent unit
+      -- prob mass.
+      sf | mass == 0 = 1 -- don't want exception, no non-zero entries anyway
+         | otherwise = recip mass
+      -- Construct the pointwise PDF
+      df _ []         = []
+      df n ((a,b):xs) = (a, b - n) : df b xs
+      in
+        sum [a * fromRational (b * sf) | (a,b) <- df 0 $ M.toAscList  m]
+
+    var'  = nan
+
+-- The result of the lookup is half-open interval [a,b) over which this is the
+-- probability density.
     asPDF :: M.Map Double Rational -> Double -> ((Double, Double), Rational)
     asPDF = (f .) . flip M.lookupLE . M.fromAscList . g .  M.toAscList
       where

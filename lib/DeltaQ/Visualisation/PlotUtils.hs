@@ -54,6 +54,8 @@ toPlottableCDF'  (PI np de) gen dq =
       where
         cs = map ( / fromIntegral n) $ iterate (+1) 1
 
+
+-- | Generate a CDP plot with default paramters.
 toPlottableCDF :: (MonadIO m)
                => GenIO
                -> DeltaQ
